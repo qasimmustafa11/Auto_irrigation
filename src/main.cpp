@@ -14,7 +14,7 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 char* MQTTSnakePlantTopic = "/study/snakePlant";
 char MQTTMessage[50] = {};
-const int writeDelay = 60 * 1 * 1000;    //mqtt write time period = 1 minutes
+const int writeDelay = 60 * 1* 1000;    //mqtt write time period = 1 minute
 
 //Sensor variables
 const int sensorPin  = 33;  //sensor input pint
