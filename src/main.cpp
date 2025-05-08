@@ -1,18 +1,24 @@
 #include <Arduino.h>
 
-// put function declarations here:
-int myFunction(int, int);
+#define PUMP_PIN 2
+
+int pinState = false;
+
+
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+  Serial.begin(9600);
+  pinMode(PUMP_PIN, OUTPUT);
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-}
-
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+  delay(500);
+  if(pinState){
+    digitalWrite(PUMP_PIN, 0);
+    pinState = false;
+  }
+  else{
+    digitalWrite(PUMP_PIN, 1);
+    pinState = true;
+  }
 }
