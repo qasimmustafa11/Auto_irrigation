@@ -48,6 +48,8 @@ void setup() {
 
   pinMode(SENSOR_PIN, INPUT);
   pinMode(LEDPin, OUTPUT);
+  pinMode(PUMP_PIN, OUTPUT);
+  digitalWrite(PUMP_PIN, 1);
 
   print_wakeup_reason();
 
@@ -97,9 +99,9 @@ void loop() {
     //If sensor val < 50%, turn on pump for 3 seconds
     if(moisturePerc < 50 ){
       Serial.println("Turning on pump for 3 seconds");
-      digitalWrite(PUMP_PIN, 1);
-      delay(PUMP_ON_TIME_MS);
       digitalWrite(PUMP_PIN, 0);
+      delay(PUMP_ON_TIME_MS);
+      digitalWrite(PUMP_PIN, 1);
     }
     previousTime = currentTime;
   }
