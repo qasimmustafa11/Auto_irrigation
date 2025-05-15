@@ -2,13 +2,14 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 
-#define PUMP_PIN 2  //water pump relay control pin
+#define PUMP_PIN 15  //water pump relay control pin
 #define SENSOR_PIN 33 //moisture sensor pin
 
 //Misc Macros
-#define SLEEP_TIME_S 60
+#define SLEEP_TIME_S 300
 #define S_TO_US 1000000
 #define SLEEP_TIME_US (SLEEP_TIME_S * S_TO_US)
+#define PUMP_ON_TIME_MS 3000
 
 
 //MQTT MACROS
@@ -97,7 +98,7 @@ void loop() {
     if(moisturePerc < 50 ){
       Serial.println("Turning on pump for 3 seconds");
       digitalWrite(PUMP_PIN, 1);
-      delay(3000);
+      delay(PUMP_ON_TIME_MS);
       digitalWrite(PUMP_PIN, 0);
     }
     previousTime = currentTime;
