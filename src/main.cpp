@@ -5,14 +5,18 @@
 #define PUMP_PIN 15  //water pump relay control pin
 #define SENSOR_PIN 33 //moisture sensor pin
 
-//Misc Macros
+//Pump Macros
+#define PUMP
+#define PUMP_ON_TIME_MS 3000
+
+//Deep Sleep macros
+#define DEEP_SLEEP true
 #define SLEEP_TIME_S 300
 #define S_TO_US 1000000
 #define SLEEP_TIME_US (SLEEP_TIME_S * S_TO_US)
-#define PUMP_ON_TIME_MS 3000
-
 
 //MQTT MACROS
+#define MQTT
 #define WIFI_SSID "Qasim's 2.4"
 #define WIFI_PASS "0627923882"
 #define MQTT_BROKER_USER "qasimmustafa"
@@ -24,12 +28,12 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 char* MQTTSnakePlantTopic = "/study/plantMoisture";
 char MQTTMessage[50] = {};
-const int writeDelay = 0;    //mqtt write time period (Set to zero as using deep sleep timer)
+const int writeDelay = DEEP_SLEEP?  0 : 1000;     //mqtt write time period (Set to zero if using deep sleep timer)
 
 //Sensor variables
 int sensorVal, sensorSum, currentTime, previousTime = 0;
-const int sensorMax = 2610, sensorMin = 1000;  //sensor ranges
-const int sensorAvgs = 100; //number of sensor reads
+const int sensorMax = 2600, sensorMin = 900;  //sensor ranges
+const int sensorAvgs = 1000; //number of sensor reads
 
 //LEDPin
 const int LEDPin = 2;
@@ -63,11 +67,13 @@ void setup() {
 
 void loop() {
 
+  #ifdef MQTT
   //Connect to MQTT server and display status LED
   if(!client.connected()){
     digitalWrite(LEDPin, LOW);
     MQTT_reconnect();
   }
+  #endif
 
   currentTime = millis();
 
@@ -90,12 +96,15 @@ void loop() {
     Serial.print(moisturePerc);
     Serial.println("%");
 
+    #ifdef MQTT
     Serial.print("MQTT message: ");
     Serial.println(MQTTMessage);
 
     Serial.println("Publishing to MQTT server...");
     client.publish(MQTTSnakePlantTopic, MQTTMessage);
+    #endif
 
+    #ifdef PUMP
     //If sensor val < 50%, turn on pump for 3 seconds
     if(moisturePerc < 50 ){
       Serial.println("Turning on pump for 3 seconds");
@@ -103,12 +112,17 @@ void loop() {
       delay(PUMP_ON_TIME_MS);
       digitalWrite(PUMP_PIN, 1);
     }
+    #endif
+
     previousTime = currentTime;
   }
 
-  Serial.println("Going to sleep...");
-  Serial.flush(); 
-  esp_deep_sleep_start();  
+  if(DEEP_SLEEP){
+    Serial.println("Going to sleep...");
+    Serial.flush(); 
+    esp_deep_sleep_start(); 
+  }
+ 
 }
 
 /* convert sensor analog value to moisture percentage */
