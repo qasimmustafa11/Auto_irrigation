@@ -7,7 +7,8 @@
 
 //Pump Macros
 #define PUMP
-#define PUMP_ON_TIME_MS 10000
+#define PUMP_ON_TIME_MS 30000
+#define PUMP_DELAY 10800000 //Min delay of 3 hours between pump runs
 
 //Deep Sleep macros
 #define DEEP_SLEEP false
@@ -28,13 +29,17 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 char* MQTTSnakePlantTopic = "/study/plantMoisture";
 char MQTTMessage[50] = {};
-const int writeDelay = DEEP_SLEEP?  0 : 3600000;     //mqtt write time period (Set to zero if using deep sleep timer)
+const int MQTTwriteDelay = DEEP_SLEEP?  0 : 60000;     //mqtt write time period (Set to zero if using deep sleep timer)
+// const int MQTTwriteDelay = DEEP_SLEEP?  0 : 10000;     //mqtt write time period (Set to zero if using deep sleep timer)
 
 //Sensor variables
 #define SENSOR_THRESHOLD 50
-int sensorVal, sensorSum, currentTime, previousTime = 0;
+int sensorVal, sensorSum, currentTime, sensPreviousTime = 0;
 const int sensorMax = 2600, sensorMin = 900;  //sensor ranges
 const int sensorAvgs = 1000; //number of sensor reads
+
+//Pump variables
+int pumpPrevTime = 0;
 
 //LEDPin
 const int LEDPin = 2;
@@ -61,13 +66,19 @@ void setup() {
 
   print_wakeup_reason();
 
-  Serial.print("Deep sleep time [s]: ");
-  Serial.println(SLEEP_TIME_US/1000000);
-
-  if(!DEEP_SLEEP){
-    Serial.print("MQTT write time delay [s]: ");
-    Serial.println(writeDelay/1000);
+  if(DEEP_SLEEP){
+    Serial.print("Deep sleep time [s]: ");
+    Serial.println(SLEEP_TIME_US/1000000);
   }
+  else{
+    Serial.print("MQTT write time delay [s]: ");
+    Serial.println(MQTTwriteDelay/1000);
+  }
+
+  #ifdef PUMP
+  Serial.print("Delay between pump ON [ms]: ");
+  Serial.println(PUMP_DELAY);
+  #endif
 
   esp_sleep_enable_timer_wakeup(SLEEP_TIME_US);    //deep sleep wake up every second
 
@@ -86,10 +97,13 @@ void loop() {
 
   currentTime = millis();
 
-  if(((currentTime - previousTime) > writeDelay) || firstRun){    //Wake up delay set to 0 as using deep sleep timer
+  int MQTTlastWriteTime = currentTime - sensPreviousTime;
+  // Serial.print("Time in ms since last MQTT write: ");
+  // Serial.println(MQTTlastWriteTime);
+
+  if((MQTTlastWriteTime > MQTTwriteDelay) || firstRun){    //Wake up delay set to 0 as using deep sleep timer
 
     sensorSum = 0;
-    firstRun = 0;
 
     for (int i = 0; i < sensorAvgs; i++){
       sensorSum += analogRead(SENSOR_PIN);
@@ -115,19 +129,28 @@ void loop() {
     #endif
 
     #ifdef PUMP
-    //If sensor val < sensor threshold, turn on pump for x seconds
-    if(moisturePerc < SENSOR_THRESHOLD ){
+    int pumpLastRunTime = currentTime - pumpPrevTime;
+    Serial.print("Time in ms since last pump ON: ");
+    Serial.println(pumpLastRunTime);
+    //If sensor val < sensor threshold and timer>PUMP_DELAY, turn on pump for x seconds
+    if( ((pumpLastRunTime > PUMP_DELAY) || firstRun) && (moisturePerc < SENSOR_THRESHOLD)){
       Serial.print("Turning on pump for ");
       Serial.print(PUMP_ON_TIME_MS/1000);
       Serial.println(" seconds");
       digitalWrite(PUMP_PIN, 0);
       delay(PUMP_ON_TIME_MS);
       digitalWrite(PUMP_PIN, 1);
+      delay(200);
+      Serial.println("Pump off");
+      pumpPrevTime = currentTime; //reset pump timer
     }
     #endif
 
-    previousTime = currentTime;
+    sensPreviousTime = currentTime; //reset sensor timer
+    firstRun = 0;
   }
+
+
 
   if(DEEP_SLEEP){
     Serial.println("Going to sleep...");
