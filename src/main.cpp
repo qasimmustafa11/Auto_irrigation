@@ -24,19 +24,22 @@
 #define MQTT_BROKER_PASS "I3w4b$96"
 #define MQTT_BROKER "homeassistant.local"
 
+
 //MQTT vars
 WiFiClient espClient;
 PubSubClient client(espClient);
 char* MQTTSnakePlantTopic = "/study/plantMoisture";
 char MQTTMessage[50] = {};
-const int MQTTwriteDelay = DEEP_SLEEP?  0 : 60000;     //mqtt write time period (Set to zero if using deep sleep timer)
 // const int MQTTwriteDelay = DEEP_SLEEP?  0 : 10000;     //mqtt write time period (Set to zero if using deep sleep timer)
 
 //Sensor variables
 #define SENSOR_THRESHOLD 50
-int sensorVal, sensorSum, currentTime, sensPreviousTime = 0;
+int sensorVal, sensorSum, currentTime, sensReadPreviousTime = 0, sensLowTimer = 0, sensHighPrevTime = 0;;
 const int sensorMax = 2600, sensorMin = 900;  //sensor ranges
 const int sensorAvgs = 1000; //number of sensor reads
+const int sensorReadDelay = DEEP_SLEEP?  0 : 60000;     //mqtt write time period (Set to zero if using deep sleep timer)
+const int sensLowDelay = 3600000; //1 hour
+
 
 //Pump variables
 int pumpPrevTime = 0;
@@ -71,8 +74,8 @@ void setup() {
     Serial.println(SLEEP_TIME_US/1000000);
   }
   else{
-    Serial.print("MQTT write time delay [s]: ");
-    Serial.println(MQTTwriteDelay/1000);
+    Serial.print("Sensor read delay [s]: ");
+    Serial.println(sensorReadDelay/1000);
   }
 
   #ifdef PUMP
@@ -97,11 +100,11 @@ void loop() {
 
   currentTime = millis();
 
-  int MQTTlastWriteTime = currentTime - sensPreviousTime;
+  int sensReadTimer = currentTime - sensReadPreviousTime;
   // Serial.print("Time in ms since last MQTT write: ");
   // Serial.println(MQTTlastWriteTime);
 
-  if((MQTTlastWriteTime > MQTTwriteDelay) || firstRun){    //Wake up delay set to 0 as using deep sleep timer
+  if((sensReadTimer > sensorReadDelay) || firstRun){    //Wake up delay set to 0 as using deep sleep timer
 
     sensorSum = 0;
 
@@ -129,29 +132,35 @@ void loop() {
     #endif
 
     #ifdef PUMP
-    int pumpLastRunTime = currentTime - pumpPrevTime;
+    int pumpLastRunTimer = currentTime - pumpPrevTime;
     Serial.print("Time in ms since last pump ON: ");
-    Serial.println(pumpLastRunTime);
-    //If sensor val < sensor threshold and timer>PUMP_DELAY, turn on pump for x seconds
-    if( ((pumpLastRunTime > PUMP_DELAY) || firstRun) && (moisturePerc < SENSOR_THRESHOLD)){
-      Serial.print("Turning on pump for ");
-      Serial.print(PUMP_ON_TIME_MS/1000);
-      Serial.println(" seconds");
-      digitalWrite(PUMP_PIN, 0);
-      delay(PUMP_ON_TIME_MS);
-      digitalWrite(PUMP_PIN, 1);
-      delay(200);
-      Serial.println("Pump off");
-      pumpPrevTime = currentTime; //reset pump timer
+    Serial.println(pumpLastRunTimer);
+
+    //If sensor val < sensor threshold, update sensLowTimer 
+    if (moisturePerc < SENSOR_THRESHOLD){
+        sensLowTimer = currentTime - sensHighPrevTime;
+
+        //If pump last run timer>PUMP_DELAY, & sens low timer > sens low delay, turn on pump for x seconds
+        if(((pumpLastRunTimer > PUMP_DELAY) || firstRun) && (sensLowTimer > sensLowDelay)){
+          Serial.print("Turning on pump for ");
+          Serial.print(PUMP_ON_TIME_MS/1000);
+          Serial.println(" seconds");
+          digitalWrite(PUMP_PIN, 0);
+          delay(PUMP_ON_TIME_MS);
+          digitalWrite(PUMP_PIN, 1);
+          delay(200);
+          Serial.println("Pump off");
+          pumpPrevTime = currentTime; //reset pump timer
+      }
+    } else {
+      sensHighPrevTime = currentTime;
     }
     #endif
 
-    sensPreviousTime = currentTime; //reset sensor timer
+    sensReadPreviousTime = currentTime; //reset sensor timer
     firstRun = 0;
   }
-
-
-
+  
   if(DEEP_SLEEP){
     Serial.println("Going to sleep...");
     Serial.flush(); 
