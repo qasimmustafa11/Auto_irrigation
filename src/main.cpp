@@ -6,7 +6,7 @@
 #define SENSOR_PIN 33 //moisture sensor pin
 
 //Pump Macros
-#define AUTO_PUMP
+// #define AUTO_PUMP
 #define PUMP_ON_TIME_MS 30000
 #define PUMP_DELAY 10800000 //Min delay of 3 hours between pump runs
 
@@ -254,7 +254,7 @@ void pump_run(){
     client.publish(MQTTPumpOutTopic, "ON");
 
     digitalWrite(PUMP_PIN, 0);
-    delay(2000);
+    delay(PUMP_ON_TIME_MS);
     digitalWrite(PUMP_PIN, 1);
 
     Serial.println("Turning Pump off");
