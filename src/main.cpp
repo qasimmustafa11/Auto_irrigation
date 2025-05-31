@@ -6,7 +6,7 @@
 #define SENSOR_PIN 33 //moisture sensor pin
 
 //Pump Macros
-#define PUMP
+#define AUTO_PUMP
 #define PUMP_ON_TIME_MS 30000
 #define PUMP_DELAY 10800000 //Min delay of 3 hours between pump runs
 
@@ -31,6 +31,9 @@ PubSubClient client(espClient);
 char* MQTTSnakePlantTopic = "/study/plantMoisture";
 char MQTTMessage[50] = {};
 // const int MQTTwriteDelay = DEEP_SLEEP?  0 : 10000;     //mqtt write time period (Set to zero if using deep sleep timer)
+char* MQTTSensorOutTopic = "/study/plantMoisture";
+char* MQTTPumpInTopic = "/living/PumpOn";
+char* MQTTPumpOutTopic = "/living/PumpState";
 
 //Sensor variables
 #define SENSOR_THRESHOLD 50
@@ -39,7 +42,6 @@ const int sensorMax = 2600, sensorMin = 900;  //sensor ranges
 const int sensorAvgs = 1000; //number of sensor reads
 const int sensorReadDelay = DEEP_SLEEP?  0 : 60000;     //mqtt write time period (Set to zero if using deep sleep timer)
 const int sensLowDelay = 3600000; //1 hour
-
 
 //Pump variables
 int pumpPrevTime = 0;
@@ -55,6 +57,25 @@ double calculate_moisture_perc(int sensorVal);
 void wifi_init();
 void MQTT_reconnect();
 void print_wakeup_reason();
+
+//Pump vars
+bool setPumpOn = false;
+
+//Function declarations
+void wifi_init();
+void MQTT_reconnect();
+
+void MQTT_callback(char* topic, byte* payload, unsigned int length){
+  Serial.print("Message received [");
+  Serial.print(topic);
+  Serial.print("]: ");
+  for (int i = 0; i<length; i++){
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+
+  setPumpOn = true;
+}
 
 void setup() {
   Serial.begin(9600);
@@ -78,13 +99,14 @@ void setup() {
     Serial.println(sensorReadDelay/1000);
   }
 
-  #ifdef PUMP
+  #ifdef AUTO_PUMP
   Serial.print("Delay between pump ON [ms]: ");
   Serial.println(PUMP_DELAY);
   #endif
 
   esp_sleep_enable_timer_wakeup(SLEEP_TIME_US);    //deep sleep wake up every second
-
+  client.setCallback(MQTT_callback);
+  delay(2000);
   Serial.println("Initialized");
 }
 
@@ -131,7 +153,7 @@ void loop() {
     client.publish(MQTTSnakePlantTopic, MQTTMessage);
     #endif
 
-    #ifdef PUMP
+    #ifdef AUTO_PUMP
     int pumpLastRunTimer = currentTime - pumpPrevTime;
     Serial.print("Time in ms since last pump ON: ");
     Serial.println(pumpLastRunTimer);
@@ -156,23 +178,44 @@ void loop() {
       sensHighPrevTime = currentTime;
     }
     #endif
-
     sensReadPreviousTime = currentTime; //reset sensor timer
     firstRun = 0;
   }
+
+  #ifndef AUTO_PUMP
+  if(setPumpOn){
+    Serial.print("Turning pump on for ");
+    Serial.print(PUMP_ON_TIME);
+    Serial.println(" ms");
+
+    client.publish(MQTTPumpOutTopic, "ON");
+
+    digitalWrite(PUMP_PIN, 0);
+    delay(2000);
+    digitalWrite(PUMP_PIN, 1);
+
+    Serial.println("Turning Pump off");
+    client.publish(MQTTPumpOutTopic, "OFF");
+
+    setPumpOn = false;
+  }
+  #endif
+
+  client.loop();
   
   if(DEEP_SLEEP){
     Serial.println("Going to sleep...");
     Serial.flush(); 
     esp_deep_sleep_start(); 
   }
- 
+
 }
 
 /* convert sensor analog value to moisture percentage */
 double calculate_moisture_perc(int sensorVal){
   return (((float)(sensorMax - sensorVal)/(sensorMax - sensorMin)) * 100);
 }
+
 
 void wifi_init(){
   Serial.println("Wifi connecting...");
@@ -191,17 +234,16 @@ void wifi_init(){
 
 void MQTT_reconnect(){
   while(!client.connected()){
-    Serial.print("Connecting to ");
-    Serial.println(MQTT_BROKER);
-    Serial.print("-");
+    // Serial.print("Connecting to ");
+    // Serial.println(MQTT_BROKER);
+    // Serial.print("-");
 
-    if(client.connect("hello", MQTT_BROKER_USER, MQTT_BROKER_PASS)){
-      Serial.print("Connected to ");
-      Serial.println(MQTT_BROKER);
+    if(client.connect("ESP32_1", MQTT_BROKER_USER, MQTT_BROKER_PASS)){
+      // Serial.print("Connected to ");
+      // Serial.println(MQTT_BROKER);
       digitalWrite(LEDPin, HIGH);
-    }
-
-    delay(1000);
+      client.subscribe(MQTTPumpInTopic);
+    } 
   }
 }
 
