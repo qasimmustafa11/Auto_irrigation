@@ -24,13 +24,11 @@
 #define MQTT_BROKER_PASS "I3w4b$96"
 #define MQTT_BROKER "homeassistant.local"
 
-
 //MQTT vars
 WiFiClient espClient;
 PubSubClient client(espClient);
 char* MQTTSnakePlantTopic = "/study/plantMoisture";
 char MQTTMessage[50] = {};
-// const int MQTTwriteDelay = DEEP_SLEEP?  0 : 10000;     //mqtt write time period (Set to zero if using deep sleep timer)
 char* MQTTSensorOutTopic = "/study/plantMoisture";
 char* MQTTPumpInTopic = "/living/PumpOn";
 char* MQTTPumpOutTopic = "/living/PumpState";
@@ -40,7 +38,7 @@ char* MQTTPumpOutTopic = "/living/PumpState";
 int sensorVal, sensorSum, currentTime, sensReadPreviousTime = 0, sensLowTimer = 0, sensHighPrevTime = 0;;
 const int sensorMax = 2600, sensorMin = 900;  //sensor ranges
 const int sensorAvgs = 1000; //number of sensor reads
-const int sensorReadDelay = DEEP_SLEEP?  0 : 60000;     //mqtt write time period (Set to zero if using deep sleep timer)
+const int sensorReadDelay = DEEP_SLEEP?  0 : 60000;     //sensor read delay 1 minute (Set to zero if using deep sleep timer)
 const int sensLowDelay = 3600000; //1 hour
 
 //Pump variables
@@ -57,6 +55,7 @@ double calculate_moisture_perc(int sensorVal);
 void wifi_init();
 void MQTT_reconnect();
 void print_wakeup_reason();
+void pump_run();
 
 //Pump vars
 bool setPumpOn = false;
@@ -95,8 +94,8 @@ void setup() {
     Serial.println(SLEEP_TIME_US/1000000);
   }
   else{
-    Serial.print("Sensor read delay [s]: ");
-    Serial.println(sensorReadDelay/1000);
+    Serial.print("Sensor read delay [ms]: ");
+    Serial.println(sensorReadDelay);
   }
 
   #ifdef AUTO_PUMP
@@ -160,43 +159,27 @@ void loop() {
 
     //If sensor val < sensor threshold, update sensLowTimer 
     if (moisturePerc < SENSOR_THRESHOLD){
-        sensLowTimer = currentTime - sensHighPrevTime;
+      sensLowTimer = currentTime - sensHighPrevTime;
+      Serial.print("Time in ms since sensor low: ");
+      Serial.println(sensLowTimer);
 
-        //If pump last run timer>PUMP_DELAY, & sens low timer > sens low delay, turn on pump for x seconds
-        if(((pumpLastRunTimer > PUMP_DELAY) || firstRun) && (sensLowTimer > sensLowDelay)){
-          Serial.print("Turning on pump for ");
-          Serial.print(PUMP_ON_TIME_MS/1000);
-          Serial.println(" seconds");
-          digitalWrite(PUMP_PIN, 0);
-          delay(PUMP_ON_TIME_MS);
-          digitalWrite(PUMP_PIN, 1);
-          delay(200);
-          Serial.println("Pump off");
-          pumpPrevTime = currentTime; //reset pump timer
+      //If pump last run timer>PUMP_DELAY, & sens low timer > sens low delay, turn on pump for x seconds
+      if(((pumpLastRunTimer > PUMP_DELAY) || firstRun) && (sensLowTimer > sensLowDelay)){
+        pump_run();
+        pumpPrevTime = currentTime; //reset pump timer
       }
     } else {
       sensHighPrevTime = currentTime;
     }
     #endif
+
     sensReadPreviousTime = currentTime; //reset sensor timer
     firstRun = 0;
   }
 
   #ifndef AUTO_PUMP
   if(setPumpOn){
-    Serial.print("Turning pump on for ");
-    Serial.print(PUMP_ON_TIME);
-    Serial.println(" ms");
-
-    client.publish(MQTTPumpOutTopic, "ON");
-
-    digitalWrite(PUMP_PIN, 0);
-    delay(2000);
-    digitalWrite(PUMP_PIN, 1);
-
-    Serial.println("Turning Pump off");
-    client.publish(MQTTPumpOutTopic, "OFF");
-
+    pump_run();
     setPumpOn = false;
   }
   #endif
@@ -261,4 +244,21 @@ void print_wakeup_reason(){
     case ESP_SLEEP_WAKEUP_ULP : Serial.println("Wakeup caused by ULP program"); break;
     default : Serial.printf("Wakeup was not caused by deep sleep: %d\n",wakeup_reason); break;
   }
+}
+
+void pump_run(){
+    Serial.print("Turning pump on for ");
+    Serial.print(PUMP_ON_TIME_MS);
+    Serial.println(" ms");
+
+    client.publish(MQTTPumpOutTopic, "ON");
+
+    digitalWrite(PUMP_PIN, 0);
+    delay(2000);
+    digitalWrite(PUMP_PIN, 1);
+
+    Serial.println("Turning Pump off");
+    client.publish(MQTTPumpOutTopic, "OFF");
+
+
 }
