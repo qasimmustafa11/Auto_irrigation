@@ -6,9 +6,9 @@
 #define SENSOR_PIN 33 //moisture sensor pin
 
 //Pump Macros
-// #define AUTO_PUMP
-#define PUMP_ON_TIME_MS 30000
-#define PUMP_DELAY 10800000 //Min delay of 3 hours between pump runs
+#define AUTO_PUMP
+#define PUMP_ON_TIME_MS 5000
+#define PUMP_DELAY 10000 //Min delay of 3 hours between pump runs
 
 //Deep Sleep macros
 #define DEEP_SLEEP false
@@ -17,7 +17,7 @@
 #define SLEEP_TIME_US (SLEEP_TIME_S * S_TO_US)
 
 //MQTT MACROS
-#define MQTT
+// #define MQTT
 #define WIFI_SSID "Qasim's 2.4"
 #define WIFI_PASS "0627923882"
 #define MQTT_BROKER_USER "qasimmustafa"
@@ -38,8 +38,8 @@ char* MQTTPumpOutTopic = "/living/PumpState";
 int sensorVal, sensorSum, currentTime, sensReadPreviousTime = 0, sensLowTimer = 0, sensHighPrevTime = 0;;
 const int sensorMax = 2600, sensorMin = 900;  //sensor ranges
 const int sensorAvgs = 1000; //number of sensor reads
-const int sensorReadDelay = DEEP_SLEEP?  0 : 60000;     //sensor read delay 1 minute (Set to zero if using deep sleep timer)
-const int sensLowDelay = 3600000; //1 hour
+const int sensorReadDelay = DEEP_SLEEP?  0 : 1000;     //sensor read delay 1 minute (Set to zero if using deep sleep timer)
+const int sensLowDelay = 2000; //1 hour
 
 //Pump variables
 int pumpPrevTime = 0;
@@ -251,12 +251,16 @@ void pump_run(){
     Serial.print(PUMP_ON_TIME_MS);
     Serial.println(" ms");
 
+    #ifdef MQTT
     client.publish(MQTTPumpOutTopic, "ON");
+    #endif
 
     digitalWrite(PUMP_PIN, 0);
     delay(PUMP_ON_TIME_MS);
     digitalWrite(PUMP_PIN, 1);
 
+    #ifdef MQTT
     client.publish(MQTTPumpOutTopic, "OFF");
+    #endif
     // Serial.println("Turning Pump off");
 }
