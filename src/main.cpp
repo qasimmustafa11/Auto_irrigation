@@ -257,8 +257,6 @@ void pump_run(){
     delay(PUMP_ON_TIME_MS);
     digitalWrite(PUMP_PIN, 1);
 
-    Serial.println("Turning Pump off");
     client.publish(MQTTPumpOutTopic, "OFF");
-
-
+    // Serial.println("Turning Pump off");
 }
